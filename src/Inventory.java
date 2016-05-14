@@ -1,4 +1,6 @@
 import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
 
 /**
  * Created by junyuanlau on 5/5/16.
@@ -18,16 +20,26 @@ public class Inventory extends HashMap<String, Integer> {
         return this.get(ticker);
     }
 
-    public Trade fillBuyOrder(Order order, HashMap<String, Double> prices){
-        double price = prices.get(order.ticker);
-        int remaining = checkBalance(order.ticker);
+    public Order fillBuyOrder(Order buy, double price, long datetime){
+        int remaining = checkBalance(buy.ticker);
         if (remaining == 0)
             return null;
 
-        int filled = Math.min(remaining , order.quantity);
-        Trade fill = new Trade(order, null, filled,price);
-        this.put(order.ticker, this.get(order.ticker) - filled);
+        int filled = Math.min(remaining , buy.remainingQuantity);
+        Order fill = new Order(null,buy.ticker, buy.exchange, buy.region, buy.orderType, filled, datetime, UUID.randomUUID(),true );
+        buy.fillOrder(filled, price, datetime);
+
+        this.put(buy.ticker, this.get(buy.ticker) - filled);
 
         return fill;
+    }
+
+    public void updateIssue(HashMap<String, Integer> issueMap){
+        for (Map.Entry<String, Integer> entry : issueMap.entrySet()){
+            if (!this.containsKey(entry.getKey())){
+                this.put(entry.getKey(), 0);
+            }
+            this.put(entry.getKey(), this.get(entry.getKey()) + entry.getValue());
+        }
     }
 }

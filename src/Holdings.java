@@ -13,6 +13,11 @@ public class Holdings extends HashMap<String, HashMap<String, Integer>> {
     }
 
     public void updateHoldings(Order order){
+        if (order == null)
+            return;
+        if (order.isInventorySale)
+            return;
+
         if (order.orderType == Order.OrderType.BUY){
             if (!this.containsKey(order.counterparty)) {
                 this.put(order.counterparty, new HashMap<String, Integer>());
@@ -22,16 +27,17 @@ public class Holdings extends HashMap<String, HashMap<String, Integer>> {
             }
                 this.get(order.counterparty).put(order.ticker, order.filledQuantity + this.get(order.counterparty).get(order.ticker));
         } else {
-            this.get(order.counterparty).put(order.ticker, order.filledQuantity - this.get(order.counterparty).get(order.ticker));
+
+            this.get(order.counterparty).put(order.ticker, this.get(order.counterparty).get(order.ticker) - order.filledQuantity);
         }
     }
 
-    public boolean checkHoldings(Order order){
-        if (this.containsKey(order.counterparty)) {
-            if (this.get(order.counterparty).containsKey(order.ticker)){
-                return this.get(order.counterparty).get(order.ticker) >= order.quantity;
+    public int checkHoldings(String counterparty, String ticker){
+        if (this.containsKey(counterparty)) {
+            if (this.get(counterparty).containsKey(ticker)){
+                return this.get(counterparty).get(ticker);
             }
         }
-        return false;
+        return 0;
     }
 }
