@@ -1,6 +1,8 @@
 import junit.framework.TestCase;
 
 import javax.swing.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
@@ -32,13 +34,13 @@ public class TradeManager {
         log.setLevel(Level.FINE);
         ConsoleHandler handler = new ConsoleHandler();
         handler.setFormatter(new MyFormatter());
-        handler.setLevel(Level.FINE);
+        handler.setLevel(Level.INFO);
 
         //log.removeHandler(log.getHandlers()[0]);
         log.setUseParentHandlers(false);
         log.addHandler(handler);
 
-        TradeManager tm = new TradeManager("testStockQty", "testStockPrice", "testTrades2");
+        TradeManager tm = new TradeManager("testStockQty", "testStockPrice", "testTrades");
         //TradeManager tm = new TradeManager("testStockQty", "testStockPrice", "testTrades");
 
         JFrame frame = new JFrame("low frequency trading");
@@ -46,39 +48,54 @@ public class TradeManager {
 
         //Create and set up the content pane.
         tm.newContentPane  = new TableView();
-        //TableView newContentPane = new TableView();
         tm.newContentPane.setOpaque(true); //content panes must be opaque
         frame.setContentPane(tm.newContentPane);
 
         //Display the window.
         frame.pack();
         frame.setVisible(true);
+
+
+
+        tm.simulateTrades(1000);
+/*
+        JFrame frame = new JFrame("low frequency trading");
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+
+        //Create and set up the content pane.
+        tm.newContentPane  = new TableView();
+        tm.newContentPane.setOpaque(true); //content panes must be opaque
+        frame.setContentPane(tm.newContentPane);
+
+        //Display the window.
+        frame.pack();
+        frame.setVisible(true);
+
+        tm.simulateTrades(1000);
+
 
         JFrame control = new JFrame("low frequency trading");
         control.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
         JPanel panel = new JPanel();
         panel.setOpaque(true);
-        control.setContentPane(panel);
 
         JButton startTrading = new JButton();
-        startTrading.liste
+        startTrading.addActionListener(new ActionListener()
+        {
+            public void actionPerformed(ActionEvent e)
+            {
+                tm.simulateTrades(1000);
+            }
+        });
 
-        panel.add()
-
-        tm.newContentPane  = new TableView();
-        //TableView newContentPane = new TableView();
-        tm.newContentPane.setOpaque(true); //content panes must be opaque
-        frame.setContentPane(tm.newContentPane);
-
-        //Display the window.
-        frame.pack();
-        frame.setVisible(true);
+        panel.add(startTrading);
 
 
-
-
-        tm.simulateTrades(1000);
+        control.setContentPane(panel);
+        control.pack();
+        control.setVisible(true);
+        */
     }
 
     public TradeManager(String issueFile, String priceFile, String tradeFile){
