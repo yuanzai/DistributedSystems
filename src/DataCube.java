@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -93,7 +94,8 @@ public class DataCube {
         }
 
         if (isCompanyData) {
-            for (int i = 2; i < countries.length; i++) {
+            for (int i = 3; i < countries.length; i++) {
+
                 countryToContinent.put(countries[i], continents[i]);
                 tickerToCountry.put(tickers[i], countries[i]);
                 marketToCountry.put(markets[i], countries[i]);
@@ -114,7 +116,7 @@ public class DataCube {
     }
 
 
-    public long dateFormat(String date, String time) {
+    public static long dateFormat(String date, String time) {
         DateFormat formatter = new SimpleDateFormat("MM/dd/yy hh:mm");
         Date formattedDate = null;
         try {
@@ -149,11 +151,14 @@ public class DataCube {
             cashBalance.put(String.valueOf(i),10000.0);
         }
     }
-    public boolean checkBalance(Double value, String counterparty){
-        if (!cashBalance.containsKey(counterparty))
-            return false;
-        return cashBalance.get(counterparty)>= value;
+
+    public void generateCashBalances(Iterable<String> it) {
+
+        for (String cpty : it){
+            cashBalance.put(cpty,10000.0);
+        }
     }
+
     public boolean updateBalance(Double value, String counterparty){
         if (!cashBalance.containsKey(counterparty))
             return false;

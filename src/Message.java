@@ -12,7 +12,7 @@ import java.net.Socket;
 import java.util.HashMap;
 
 public class Message {
-    public enum MSGTYPE {ORDER, NODE, DATA, CASHBALANCE, PING, TICK, LOCAL, SUPER, TERMINATE, UPDATECASH}
+    public enum MSGTYPE {ORDER, NODE, DATA, CASHBALANCE, PING, TICK, LOCAL, SUPER, TERMINATE, UPDATECASH, ORDERFILLED}
     public MSGTYPE msgtype;
     public Address sender;
     public Address receiver;
@@ -56,11 +56,12 @@ public class Message {
     }
 
     public static String sendMessage(Message message, Address address) {
+        if (message.msgtype == MSGTYPE.ORDERFILLED)
+            System.out.println(message.receiver.port);
         if (message == null)
             return "";
         if (address == null)
             return "";
-        System.out.println("SENDING TO " + address.host + " " + address.port + " " + message.msgtype);
 
         Socket echoSocket = null;
         PrintWriter out = null;

@@ -10,18 +10,30 @@ import java.util.UUID;
  */
 public class ExchangeTest extends TestCase{
     ExchangeNode exchange;
-    StaticData staticData;
+    Engine engine;
 
     protected void setUp(){
-        staticData = new StaticData();
-        staticData.generateCompanyStaticData("testStockQty");
-        staticData.generateMarketStaticData("testStockPrice");
+        try {
+            Thread.sleep(100);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        engine = Engine.launchEngineThread();
+        try {
+            Thread.sleep(100);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        engine.dataCube.generateCompanyStaticData("testStockQty");
+        engine.dataCube.generateMarketStaticData("testStockPrice");
+        engine.dataCube.generateCashBalances(20);
         exchange = new ExchangeNode();
         exchange.datetime = 1451656800000L;
         exchange.name = "France";
         exchange.inventory = new Inventory();
-        exchange.prices = staticData.getPriceData(exchange.datetime,exchange.name);
-        exchange.inventory.updateIssue(staticData.getIssueQuantity(exchange.datetime, exchange.name));
+        exchange.prices = engine.dataCube.getPriceData(exchange.datetime,exchange.name);
+        exchange.inventory.updateIssue(engine.dataCube.getIssueQuantity(exchange.datetime, exchange.name));
 
     }
 
@@ -39,7 +51,6 @@ public class ExchangeTest extends TestCase{
 
         // EXCHANGES EXECUTES WITH NO SELL ORDER, BUYS FROM INVENTORY
         ArrayList<Order> orders = exchange.executeBuyOrder(buy);
-        exchange.updateHoldings(buy, orders);
         assertEquals(100, buy.filledQuantity);
         assertEquals(0, buy.remainingQuantity);
         assertEquals(0, exchange.inventory.checkBalance("ACCOR"));
@@ -52,7 +63,6 @@ public class ExchangeTest extends TestCase{
         assertEquals(100, exchange.inventory.checkBalance("ACCOR"));
         Order buy = new Order("1", "ACCOR", "","", Order.OrderType.BUY,100,exchange.datetime, UUID.randomUUID(), false);
         ArrayList<Order> orders = exchange.executeBuyOrder(buy);
-        exchange.updateHoldings(buy, orders);
 
 
         // TEST TRADE 2 - no partfill, GS SELLS, MS BUYS
@@ -63,7 +73,6 @@ public class ExchangeTest extends TestCase{
 
         Order buy2 = new Order("2", "ACCOR", "","", Order.OrderType.BUY,100,exchange.datetime, UUID.randomUUID(), false);
         orders = exchange.executeBuyOrder(buy2);
-        exchange.updateHoldings(buy2, orders);
         assertEquals(100, buy2.filledQuantity);
         assertEquals(0, buy2.remainingQuantity);
         assertEquals(100, sell.filledQuantity);
@@ -99,11 +108,10 @@ public class ExchangeTest extends TestCase{
     public void testBuyingFromNothing() {
         assertEquals(100, exchange.inventory.checkBalance("ACCOR"));
         Order buy = new Order("1", "ACCOR", "","", Order.OrderType.BUY,100,exchange.datetime, UUID.randomUUID(), false);
-        ArrayList<Order> orders = exchange.executeBuyOrder(buy);
-        exchange.updateHoldings(buy, orders);
+        exchange.executeBuyOrder(buy);
 
         Order buy2 = new Order("1", "ACCOR", "","", Order.OrderType.BUY,100,exchange.datetime, UUID.randomUUID(), false);
-        orders = exchange.executeBuyOrder(buy);
+        ArrayList<Order> orders  = exchange.executeBuyOrder(buy2);
         assertEquals(0, orders.size());
 
         assertEquals(0, exchange.inventory.checkBalance("ACCOR"));
@@ -116,7 +124,6 @@ public class ExchangeTest extends TestCase{
         assertEquals(100, exchange.inventory.checkBalance("ACCOR"));
         Order buy = new Order("1", "ACCOR", "","", Order.OrderType.BUY,200,exchange.datetime, UUID.randomUUID(), false);
         ArrayList<Order> orders = exchange.executeBuyOrder(buy);
-        exchange.updateHoldings(buy, orders);
         assertEquals(buy.status, Order.OrderStatus.PARTFILL);
         assertEquals(buy.remainingQuantity, 100);
         assertEquals(buy.filledQuantity, 100);
@@ -128,7 +135,6 @@ public class ExchangeTest extends TestCase{
         assertEquals(100, exchange.inventory.checkBalance("ACCOR"));
         Order buy = new Order("1", "ACCOR", "","", Order.OrderType.BUY,100,exchange.datetime, UUID.randomUUID(), false);
         ArrayList<Order> orders = exchange.executeBuyOrder(buy);
-        exchange.updateHoldings(buy, orders);
 
 
         assertEquals(0, exchange.holdings.checkHoldings("2","ACCOR"));
@@ -138,7 +144,6 @@ public class ExchangeTest extends TestCase{
 
         Order buy2 = new Order("2", "ACCOR", "","", Order.OrderType.BUY,200,exchange.datetime, UUID.randomUUID(), false);
         orders = exchange.executeBuyOrder(buy2);
-        exchange.updateHoldings(buy2, orders);
         assertEquals(100, buy2.filledQuantity);
         assertEquals(100, buy2.remainingQuantity);
         assertEquals(100, sell.filledQuantity);
@@ -157,8 +162,6 @@ public class ExchangeTest extends TestCase{
         assertEquals(100, exchange.inventory.checkBalance("ACCOR"));
         Order buy = new Order("1", "ACCOR", "","", Order.OrderType.BUY,100,exchange.datetime, UUID.randomUUID(), false);
         ArrayList<Order> orders = exchange.executeBuyOrder(buy);
-        exchange.updateHoldings(buy, orders);
-
 
         assertEquals(0, exchange.holdings.checkHoldings("2","ACCOR"));
         Order sell = new Order("1", "ACCOR", "","", Order.OrderType.SELL,100,exchange.datetime, UUID.randomUUID(), false);
@@ -167,7 +170,6 @@ public class ExchangeTest extends TestCase{
 
         Order buy2 = new Order("2", "ACCOR", "","", Order.OrderType.BUY,50,exchange.datetime, UUID.randomUUID(), false);
         orders = exchange.executeBuyOrder(buy2);
-        exchange.updateHoldings(buy2, orders);
         assertEquals(50, buy2.filledQuantity);
         assertEquals(0, buy2.remainingQuantity);
         assertEquals(50, sell.filledQuantity);
@@ -185,8 +187,6 @@ public class ExchangeTest extends TestCase{
     @Test
     public void testNoCash() {
 
-        Engine.launchEngineThread();
-
         // NO CASH
         assertEquals(100, exchange.inventory.checkBalance("ACCOR"));
 
@@ -200,6 +200,43 @@ public class ExchangeTest extends TestCase{
 
         assertEquals(buy.status, Order.OrderStatus.NOCASH);
         assertEquals(0, exchange.holdings.checkHoldings("1","ACCOR"));
+
+    }
+
+
+    @Test
+    public void testCashBalance() {
+
+
+        // NO CASH
+        assertEquals(100, exchange.inventory.checkBalance("ACCOR"));
+
+        exchange.prices.put("ACCOR",99.0);
+
+        // TEST TRADE 1 - no part fill, GS SENDS ORDER for ACCOR
+        Order buy = new Order("1", "ACCOR", "","", Order.OrderType.BUY,100,exchange.datetime, UUID.randomUUID(), false);
+
+        ArrayList<Order> orders = exchange.executeBuyOrder(buy);
+        try {
+            Thread.sleep(100);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        assertEquals(100.0, engine.dataCube.cashBalance.get("1"));
+        assertEquals(100, exchange.holdings.checkHoldings("1","ACCOR"));
+
+    }
+
+    public void tearDown(){
+
+        Message message = new Message(Message.MSGTYPE.TERMINATE,null,Engine.engineAddress,"");
+        Message.sendMessageToLocal(message);
+        try {
+            Thread.sleep(100);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
 
     }
 }

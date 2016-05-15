@@ -2,6 +2,7 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
 import java.lang.reflect.Type;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -38,6 +39,7 @@ public class ExchangeSuperNode extends ExchangeNode {
         }
 
         if (message.receiver.name.equals(name)) {
+
             if (message.msgtype == Message.MSGTYPE.LOCAL) {
                 localNodeAddress.put(message.sender.name, message.sender);
             } else if (message.msgtype == Message.MSGTYPE.SUPER) {
@@ -46,7 +48,7 @@ public class ExchangeSuperNode extends ExchangeNode {
             } else {
                 return super.processMessage(message);
             }
-        } if (message.receiver.region.equals(region)) {
+        } else if (message.receiver.region.equals(region)) {
             if (!localNodeAddress.containsKey(message.receiver.name)) {
                 message.payload = "NACK";
                 return message;
@@ -85,6 +87,31 @@ public class ExchangeSuperNode extends ExchangeNode {
     public void broadcastToLocals(Message message){
         for (Address a : localNodeAddress.values()){
             Message.sendMessage(message, a);
+        }
+    }
+
+    @Override
+    public void responseSellFills(ArrayList<Order> orders){
+        super.responseSellFills(orders);
+    }
+
+    @Override
+    public void responseSellFilled(Order order){
+        String country = clientCountry.get(order.counterparty);
+        String region = countryToContinent.get(country);
+
+        if (country.equals(local.name)) {
+            System.out.println("local");
+            TradeManager.log.info("[ACKD RECVD] CPTY" + order.counterparty + " " + order.orderType + " " + order.quantity + " " + order.ticker + " " + order.status);
+        } else if (region.equals(local.region)){
+            Address add = localNodeAddress.get(country);
+            Message message = new Message(Message.MSGTYPE.ORDER, local, add, order.getPayload());
+            Message.sendMessageToLocal(message);
+
+        } else {
+            Address add = superNodeAddress.get(region);
+            Message message = new Message(Message.MSGTYPE.ORDER, local, new Address(country, region), order.getPayload());
+            Message.sendMessage(message, add);
         }
     }
 }

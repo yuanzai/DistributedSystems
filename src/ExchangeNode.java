@@ -16,11 +16,15 @@ public class ExchangeNode {
     Inventory inventory = new Inventory();
     Holdings holdings = new Holdings();
     HashMap<String, Double> prices;
+    HashMap<String, String> clientCountry;
+    HashMap<String, String> countryToContinent;
+
     Address supernode;
     String region;
     String name;
     Address local;
     ServerSocket serverSocket = null;
+
     long datetime;
 
     boolean isRunning = false;
@@ -76,10 +80,14 @@ public class ExchangeNode {
             try {
                 String data = in.readLine();
                 Message received = Message.readMessage(data);
-                System.out.println("[" + local.port + "] RECV " +received.msgtype);
+                TradeManager.log.fine("[" + local.port + "] RECV " +  received.msgtype );
                 Message response = processMessage(received);
-                if (response != null)
+
+                if (response != null) {
                     out.println(response.getMessage());
+                    TradeManager.log.fine("[" + local.port + "] SEND " +  response.msgtype );
+                }
+
                 else
                     out.println("");
             } catch (IOException e) {
@@ -111,11 +119,21 @@ public class ExchangeNode {
 
         if (message.msgtype == Message.MSGTYPE.ORDER){
             Order order = Order.readOrder(message.payload);
-            if (order.orderType == Order.OrderType.BUY) {
-                executeBuyOrder(order);
-                message.payload = order.getPayload();
+            if (order.status != Order.OrderStatus.CREATED){
+                TradeManager.log.info("[ACKD RECVD] CPTY" + order.counterparty + " " + order.orderType + " " + order.quantity + " " + order.ticker + " " + order.status);
+                return null;
             } else {
-                receiveSellOrders(order);
+                if (order.orderType == Order.OrderType.BUY) {
+                    if (orderList.checkValid(order)) {
+                        executeBuyOrder(order);
+                    } else {
+                        order.status = Order.OrderStatus.CONFLICT;
+                    }
+                    message.payload = order.getPayload();
+                } else {
+                    receiveSellOrders(order);
+                    message.payload = order.getPayload();
+                }
             }
         } else if (message.msgtype == Message.MSGTYPE.PING){
 
@@ -137,22 +155,23 @@ public class ExchangeNode {
         Type typeOfHashMap = new TypeToken<HashMap<String, Double>>() { }.getType();
         prices = gson.fromJson(response.payload, typeOfHashMap);
 
-
-
         message = new Message(Message.MSGTYPE.TICK,local,Engine.engineAddress,"ISSUE");
         response = Message.readMessage(Message.sendMessageToLocal(message));
         typeOfHashMap = new TypeToken<HashMap<String, Integer>>() { }.getType();
         HashMap<String, Integer> issues = gson.fromJson(response.payload, typeOfHashMap);
         inventory.updateIssue(issues);
-        System.out.println("TICKDONE " + local.port);
 
-    }
+        message = new Message(Message.MSGTYPE.TICK,local,Engine.engineAddress,"CLIENT");
+        response = Message.readMessage(Message.sendMessageToLocal(message));
+        typeOfHashMap = new TypeToken<HashMap<String, String>>() { }.getType();
+        clientCountry = gson.fromJson(response.payload, typeOfHashMap);
 
-    public void endOfDay(){
-        // get next date time
-        // retrieve price data
-        // retrieve issue data
-        // update inventory with issue data
+        message = new Message(Message.MSGTYPE.TICK,local,Engine.engineAddress,"REGION");
+        response = Message.readMessage(Message.sendMessageToLocal(message));
+        typeOfHashMap = new TypeToken<HashMap<String, String>>() { }.getType();
+        countryToContinent = gson.fromJson(response.payload, typeOfHashMap);
+        TradeManager.log.fine("[" + local.port + "] TICK DONE");
+
     }
 
     public boolean receiveSellOrders(Order order) {
@@ -203,15 +222,43 @@ public class ExchangeNode {
             order.status = Order.OrderStatus.NOINVENTORY;
 
         updateBalance(order.counterparty, -order.filledQuantity*price);
+
+        updateHoldings(order,ordersFilled);
+
+        responseSellFills(ordersFilled);
         return ordersFilled;
     }
 
-    public void updateHoldings(Order order, ArrayList<Order> orders){
+    private void updateHoldings(Order order, ArrayList<Order> orders){
         holdings.updateHoldings(order);
         if (orders != null){
             for (Order o : orders){
                 holdings.updateHoldings(o);
             }
+        }
+    }
+
+    public void responseSellFills(ArrayList<Order> orders){
+        if (orders == null)
+            return;
+        if (orders.size() == 0)
+            return;
+        for (Order order : orders){
+            if (order.isInventorySale)
+                continue;
+            responseSellFilled(order);
+        }
+    }
+
+    public void responseSellFilled(Order order){
+        String country = clientCountry.get(order.counterparty);
+        String region = countryToContinent.get(country);
+
+        if (country.equals(local.name)) {
+            TradeManager.log.info("[ACKD RECVD] CPTY" + order.counterparty + " " + order.orderType + " " + order.quantity + " " + order.ticker + " " + order.status);
+        } else {
+            Message message = new Message(Message.MSGTYPE.ORDER, local, new Address(country, region), order.getPayload());
+            Message.sendMessage(message, supernode);
         }
     }
 
@@ -239,7 +286,10 @@ class NodeThread implements Runnable {
     }
 
     public void run() {
-        System.out.println("[" + node.local.port + "] RUNNING " +  node.local.name );
+        if (node.supernode == null)
+            TradeManager.log.fine("[" + node.local.port + "] RUNNING SUPERNODE " +  node.local.name );
+        else
+            TradeManager.log.fine("[" + node.local.port + "] RUNNING " +  node.local.name );
         node.startServer();
     }
 

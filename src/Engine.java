@@ -7,17 +7,21 @@ import java.net.Socket;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Created by junyuanlau on 9/5/16.
  */
 public class Engine {
+
     DataCube dataCube;
     ServerSocket serverSocket;
     long datetime;
     Iterator<Long> datetimeIterator;
     public static Address engineAddress = new Address("localhost", 10000);
     HashMap<String, Address> superNodeAddress = new HashMap<String, Address>();
+    HashMap<String, String> clientCountry;
     EngineThread engineThread;
     boolean terminate = false;
 
@@ -63,8 +67,9 @@ public class Engine {
             try {
                 String data = in.readLine();
                 Message received = Message.readMessage(data);
+                TradeManager.log.fine("[ENGINE] RECV " +  received.msgtype );
                 Message response = processMessage(received);
-
+                TradeManager.log.fine("[ENGINE] SEND " +  response.msgtype );
                 out.println(response.getMessage());
             } catch (IOException e) {
                 e.printStackTrace();
@@ -103,34 +108,39 @@ public class Engine {
         }else if (message.msgtype == Message.MSGTYPE.TERMINATE) {
             stopEngineThread();
         } else if (message.msgtype == Message.MSGTYPE.UPDATECASH) {
-            dataCube.updateBalance(DataCube.getUpdateCashBalanceAmount(message.payload), DataCube.getUpdateCashBalanceCpty(message.payload));
+            dataCube.updateBalance(DataCube.getUpdateCashBalanceAmount(message.payload),
+                    DataCube.getUpdateCashBalanceCpty(message.payload));
         } else if (message.msgtype == Message.MSGTYPE.TICK) {
+            Gson gson = new Gson();
             if (message.payload.equals("DATETIME")){
                 message.payload = String.valueOf(datetime);
             }else if (message.payload.equals("PRICES")){
-                Gson gson = new Gson();
                 message.payload = gson.toJson(getPriceData(datetime,message.sender.name));
             }else if (message.payload.equals("ISSUE")){
-                Gson gson = new Gson();
                 message.payload = gson.toJson(getIssueQuantity(datetime,message.sender.name));
+            }else if (message.payload.equals("CLIENT")){
+                message.payload = gson.toJson(clientCountry);
+            }else if (message.payload.equals("REGION")){
+                message.payload = gson.toJson(dataCube.countryToContinent);
             }
         }
 
         return message;
     }
 
-    public void tick() {
+    public boolean tick() {
         if (datetimeIterator == null)
             datetimeIterator = dataCube.timeMap.keySet().iterator();
         if (datetimeIterator.hasNext()){
             datetime = datetimeIterator.next();
         } else {
-            System.out.println("END OF TIME");
+            return false;
         }
         for (Map.Entry<String, Address> entry: superNodeAddress.entrySet()){
             Message message = new Message(Message.MSGTYPE.TICK,null,entry.getValue(),"");
             Message.sendMessageToLocal(message);
         }
+        return true;
     }
 
     public HashMap<String, Integer> getIssueQuantity(long datetime, String country) {
@@ -141,6 +151,13 @@ public class Engine {
         return dataCube.getPriceData(datetime, country);
     }
 
+    public String getTickerCountry(String ticker){
+        return dataCube.tickerToCountry.get(ticker);
+    }
+
+    public String getCountryRegion(String country){
+        return dataCube.countryToContinent.get(country);
+    }
 
 }
 class EngineThread implements Runnable {
@@ -150,12 +167,12 @@ class EngineThread implements Runnable {
     EngineThread( String name, Engine engine){
         threadName = name;
         this.eng = engine;
-        System.out.println("Creating " +  threadName );
+        TradeManager.log.fine("[ENGINE] Creating " +  threadName );
     }
 
     public void run() {
-        System.out.println("Running " +  threadName );
 
+        TradeManager.log.fine("[ENGINE] Running " +  threadName );
 
         eng.init();
         eng.dataCube.generateCashBalances(10);

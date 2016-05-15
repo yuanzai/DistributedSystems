@@ -7,6 +7,20 @@ import java.util.LinkedList;
  */
 public class OrderList extends HashMap<String, LinkedList<Order>> {
 
+    public boolean checkValid(Order buy) {
+
+        LinkedList<Order> queue = this.get(buy.ticker);
+        if (queue == null)
+            return true;
+        if (queue.size() == 0)
+            return true;
+        for (Order sell : queue){
+            if (sell.counterparty.equals(buy.counterparty))
+                return false;
+        }
+        return true;
+    }
+
     public ArrayList<Order> executeBuyOrder(Order buy, double price, long datetime){
         buy.status = Order.OrderStatus.PENDING;
         ArrayList<Order> filledSellOrders = new ArrayList<Order>();

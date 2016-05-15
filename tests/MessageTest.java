@@ -3,7 +3,6 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 import junit.framework.TestCase;
 import org.junit.Test;
-import org.junit.experimental.theories.suppliers.TestedOn;
 
 import java.lang.reflect.Type;
 import java.util.HashMap;
@@ -15,7 +14,7 @@ import java.util.UUID;
  * Created by junyuanlau on 14/5/16.
  */
 public class MessageTest extends TestCase{
-    StaticData staticData;
+    DataCube dataCube;
     protected void setUp(){
 
     }
@@ -55,12 +54,10 @@ public class MessageTest extends TestCase{
 
     @Test
     public void testCashBalance() {
-        EngineThread engineThread = new EngineThread("Engine");
-        engineThread.start();
-
+        Engine.launchEngineThread();
         Address rec = new Address("France", "Test");
 
-        System.out.println(Engine.sendMessage(new Message(Message.MSGTYPE.CASHBALANCE,rec,Engine.engineAddress,"1")));
+        System.out.println(Message.sendMessageToLocal(new Message(Message.MSGTYPE.CASHBALANCE,rec,Engine.engineAddress,"1")));
     }
 
     @Test
@@ -75,34 +72,4 @@ public class MessageTest extends TestCase{
         assertEquals(buy.isInventorySale,buy2.isInventorySale);
 
     }
-
-    class EngineThread implements Runnable {
-        private Thread t;
-        private String threadName;
-
-        EngineThread( String name){
-            threadName = name;
-            System.out.println("Creating " +  threadName );
-        }
-
-        public void run() {
-            System.out.println("Running " +  threadName );
-
-            Engine eng = new Engine();
-            eng.init();
-            eng.start();
-        }
-
-        public void start ()
-        {
-            if (t == null)
-            {
-                t = new Thread (this, threadName);
-                t.start ();
-            }
-        }
-
-    }
-
-
 }
