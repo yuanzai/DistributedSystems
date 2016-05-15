@@ -1,3 +1,5 @@
+import com.google.gson.Gson;
+
 import java.util.UUID;
 
 /**
@@ -6,7 +8,7 @@ import java.util.UUID;
 public class Order {
 
     enum OrderType {BUY, SELL}
-    enum OrderStatus {CREATED, PENDING, FILLED, PARTFILL, ERROR}
+    enum OrderStatus {CREATED, PENDING, FILLED, PARTFILL, ERROR, REJECT, NOCASH, ACK}
     String counterparty;
     String ticker;
     String exchange;
@@ -26,9 +28,18 @@ public class Order {
 
     boolean isInventorySale;
 
-    public Order() {
-
+    public static Order readOrder(String data) {
+        Gson gson = new Gson();
+        return gson.fromJson(data, Order.class);
     }
+
+    public String getPayload(){
+        Gson gson = new Gson();
+        return gson.toJson(this);
+    }
+
+    public Order() {}
+
     public Order(String counterparty, String ticker, String exchange, String region, OrderType type, int quantity, long datetime, UUID orderID, boolean isInventorySale){
         this.counterparty = counterparty;
         this.ticker = ticker;

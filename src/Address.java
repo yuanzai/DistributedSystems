@@ -10,6 +10,10 @@ public class Address {
         this.name = name;
         this.region = region;
     }
+    public Address(String host, int port){
+        this.host = host;
+        this.port = port;
+    }
 
 
 }

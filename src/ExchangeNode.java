@@ -1,7 +1,4 @@
-import java.io.BufferedReader;
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
@@ -22,46 +19,75 @@ public class ExchangeNode {
     ServerSocket serverSocket = null;
     long datetime;
 
-    public void start(String name, String region, Address localAddress, Address entryReferenceNode, boolean isSupernode){
+    boolean isRunning = false;
+
+
+
+    public ExchangeNode(String name, String region, Address localAddress, Address entryReferenceNode, boolean isSupernode) {
         this.local = localAddress;
         this.name = name;
         this.region = region;
+    }
+    public ExchangeNode(){}
+
+    public void start(){
+        NodeThread nodeThread = new NodeThread(name, this);
+        nodeThread.start();
+    }
+
+    public void startServer(){
+        serverSocket = null;
 
         try {
-            serverSocket = new ServerSocket(localAddress.port);
+            serverSocket = new ServerSocket(local.port);
         } catch (IOException e) {
             e.printStackTrace();
         }
+        isRunning = true;
+        while (true) {
+            isRunning = true;
+            Socket clientSocket = null;
+            PrintWriter out = null;
+            BufferedReader in = null;
 
-        while(true) {
-
-            try (
-                Socket clientSocket = serverSocket.accept();
-                DataOutputStream out = new DataOutputStream(clientSocket.getOutputStream());
-                BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-            ) {
-                StringBuilder builder = new StringBuilder();
-                String line;
-                do
-                {
-                    line = in.readLine();
-                    if (line.equals("")) break;
-
-                    builder.append(line + "\r\n");
-                }
-                while (true);
-
-                String request = builder.toString();
-                System.out.println("[SERVER] " + request);
-
-                Message received = new Message(request, this);
-                Message response = received.response();
-                out.write(response.payload);
+            try {
+                clientSocket = serverSocket.accept();
+                out = new PrintWriter(clientSocket.getOutputStream(), true);
+                in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
 
             } catch (IOException e) {
+                isRunning = false;
+                e.printStackTrace();
+            }
+
+            System.out.println("LISTENING ON " + local.port);
+            try {
+                String data = in.readLine();
+                Message received = Message.readMessage(data);
+                Message response = processMessage(received);
+
+                out.println(response.getMessage());
+            } catch (IOException e) {
+                isRunning = false;
                 e.printStackTrace();
             }
         }
+    }
+
+    public Message processMessage(Message message){
+        if (message.msgtype == Message.MSGTYPE.ORDER){
+            Order order = Order.readOrder(message.payload);
+            if (order.orderType == Order.OrderType.BUY) {
+                executeBuyOrder(order);
+            } else {
+                receiveSellOrders(order);
+            }
+        } else if (message.msgtype == Message.MSGTYPE.PING){
+
+        } else if (message.msgtype == Message.MSGTYPE.NODE){
+
+        }
+        return message;
     }
 
     public void endOfDay(){
@@ -82,6 +108,7 @@ public class ExchangeNode {
             orderList.queueSellOrder(order);
             return true;
         }
+        order.status = Order.OrderStatus.REJECT;
         return false;
     }
 
@@ -91,7 +118,15 @@ public class ExchangeNode {
             order.status = Order.OrderStatus.ERROR;
             return null;
         }
+
+
         double price = prices.get(order.ticker);
+
+        if (checkBalance(order.counterparty)<price*order.remainingQuantity){
+            order.status = Order.OrderStatus.NOCASH;
+            return null;
+        }
+
         ArrayList<Order> ordersFilled = orderList.executeBuyOrder(order, price, datetime);
         if (order.remainingQuantity > 0) {
             Order inventoryFill = inventory.fillBuyOrder(order, price, datetime);
@@ -133,4 +168,37 @@ public class ExchangeNode {
     public void sendMessage(Message message){
 
     }
+
+    public double checkBalance(String counterparty){
+        Message message = new Message(Message.MSGTYPE.CASHBALANCE,local,Engine.engineAddress,counterparty);
+        Message response = Message.readMessage(Engine.sendMessage(message));
+
+        if (response.payload.equals("NOTFOUNT"))
+            return 0;
+        return Double.parseDouble(response.payload);
+    }
+}
+class NodeThread implements Runnable {
+    private Thread t;
+    private String threadName;
+    private ExchangeNode node;
+    NodeThread(String name, ExchangeNode node){
+        threadName = name;
+        this.node = node;
+        System.out.println("Creating " +  threadName );
+    }
+
+    public void run() {
+        System.out.println("Running " +  threadName );
+        node.startServer();
+    }
+
+    public void start() {
+        if (t == null)
+        {
+            t = new Thread (this, threadName);
+            t.start ();
+        }
+    }
+
 }

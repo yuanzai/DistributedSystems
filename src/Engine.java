@@ -1,4 +1,6 @@
 import java.io.*;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -11,16 +13,79 @@ import java.util.LinkedHashMap;
  */
 public class Engine {
     StaticData staticData;
+    CashBalance cashBalance;
+    ServerSocket serverSocket;
+    public static Address engineAddress = new Address("localhost", 10000);
+
     public static void main(String[] args) {
         StaticData csd = new StaticData();
         StaticData csd2 = new StaticData();
         //csd.generateCompanyStaticData(testStockQty);
-        System.out.println(csd.dateFormat("1/1/2016","10:00"));
-        System.out.println(csd.dateFormat("1/10/2016","18:00"));
+        System.out.println(csd.dateFormat("1/1/2016", "10:00"));
+        System.out.println(csd.dateFormat("1/10/2016", "18:00"));
         Date date = new Date();
         date.setTime(1452470400000L);
         System.out.println(date.toString());
     }
+
+    public Engine() {
+
+    }
+
+    public static void launchEngineThread(){
+        EngineThread engineThread = new EngineThread("Engine");
+        engineThread.start();
+    }
+
+    public void start(){
+        serverSocket = null;
+
+        try {
+            serverSocket = new ServerSocket(engineAddress.port);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        while (true) {
+            Socket clientSocket = null;
+            PrintWriter out = null;
+            BufferedReader in = null;
+            try {
+                clientSocket = serverSocket.accept();
+                out = new PrintWriter(clientSocket.getOutputStream(), true);
+                in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+            System.out.println("LISTENING ON " + engineAddress.port);
+            try {
+                String data = in.readLine();
+                Message received = Message.readMessage(data);
+                Message response = processMessage(received);
+
+                out.println(response.getMessage());
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+    public void init() {
+        cashBalance = new CashBalance(100);
+    }
+
+    public Message processMessage(Message message) {
+        if (message.msgtype == Message.MSGTYPE.CASHBALANCE) {
+            if (!cashBalance.containsKey(message.payload))
+                message.payload = "NOTFOUND";
+            else
+                message.payload = cashBalance.get(message.payload).toString();
+
+        }
+        return message;
+    }
+
 
     public HashMap<String, Integer> getIssueQuantity(long datetime, String country) {
         return staticData.getIssueQuantity(datetime, country);
@@ -30,8 +95,61 @@ public class Engine {
         return staticData.getPriceData(datetime, country);
     }
 
+    public static String sendMessage(Message message) {
+        System.out.println("SENDING TO " + message.receiver.host + " " + message.receiver.port);
+
+        Socket echoSocket = null;
+        PrintWriter out = null;
+        BufferedReader in = null;
+        try {
+            echoSocket = new Socket(message.receiver.host, message.receiver.port);
+            out = new PrintWriter(echoSocket.getOutputStream(), true);
+            in = new BufferedReader(new InputStreamReader(echoSocket.getInputStream()));
+        } catch (IOException e) {
+            return "FAIL";
+        }
+
+        out.println(message.getMessage());
+
+        try {
+            String inputLine;
+            while ((inputLine = in.readLine()) != null) {
+                return inputLine;
+            }
+
+        } catch (IOException e) {
+            return "FAIL";
+        }
+        return "FAIL";
+    }
+}
+class EngineThread implements Runnable {
+    private Thread t;
+    private String threadName;
+
+    EngineThread( String name){
+        threadName = name;
+        System.out.println("Creating " +  threadName );
+    }
+
+    public void run() {
+        System.out.println("Running " +  threadName );
+
+        Engine eng = new Engine();
+        eng.init();
+        eng.start();
+    }
+
+    public void start() {
+        if (t == null)
+        {
+            t = new Thread (this, threadName);
+            t.start ();
+        }
+    }
 
 }
+
 
 class StaticData {
     HashMap<String, HashMap<String, Integer>> issueMap = new HashMap<String, HashMap<String, Integer>>();
@@ -151,4 +269,23 @@ class StaticData {
     }
 }
 
+class CashBalance extends HashMap<String, Double>{
+    public CashBalance(int n){
+        for (int i = 1; i<=n; i++){
+            this.put(String.valueOf(i),10000.0);
+        }
+    }
+    public boolean checkBalance(Double value, String counterparty){
+        if (!this.containsKey(counterparty))
+            return false;
+        return this.get(counterparty)>= value;
+    }
+    public boolean updateBalance(Double value, String counterparty){
+        if (!this.containsKey(counterparty))
+            return false;
+        this.put(counterparty, this.get(counterparty)+value);
+        return true;
+    }
+
+}
 

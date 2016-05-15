@@ -27,7 +27,7 @@ public class OrderList extends HashMap<String, LinkedList<Order>> {
 
                 sell.status = Order.OrderStatus.FILLED;
                 queue.remove(sell);
-                //sell = queue.removeFirst();
+                //}sell = queue.removeFirst();
 
                 filledSellOrders.add(sell);
 
