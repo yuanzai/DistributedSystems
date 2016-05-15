@@ -8,7 +8,7 @@ import java.util.UUID;
 public class Order {
 
     enum OrderType {BUY, SELL}
-    enum OrderStatus {CREATED, PENDING, FILLED, PARTFILL, ERROR, REJECT, NOCASH, ACK}
+    enum OrderStatus {CREATED, PENDING, FILLED, PARTFILL, ERROR, REJECT, NOCASH, ACK, NOINVENTORY}
     String counterparty;
     String ticker;
     String exchange;

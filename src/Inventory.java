@@ -28,13 +28,14 @@ public class Inventory extends HashMap<String, Integer> {
         int filled = Math.min(remaining , buy.remainingQuantity);
         Order fill = new Order(null,buy.ticker, buy.exchange, buy.region, buy.orderType, filled, datetime, UUID.randomUUID(),true );
         buy.fillOrder(filled, price, datetime);
-
         this.put(buy.ticker, this.get(buy.ticker) - filled);
 
         return fill;
     }
 
     public void updateIssue(HashMap<String, Integer> issueMap){
+        if (issueMap == null)
+            return;
         for (Map.Entry<String, Integer> entry : issueMap.entrySet()){
             if (!this.containsKey(entry.getKey())){
                 this.put(entry.getKey(), 0);

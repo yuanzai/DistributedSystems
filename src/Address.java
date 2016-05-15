@@ -14,6 +14,13 @@ public class Address {
         this.host = host;
         this.port = port;
     }
+    public Address(String host, int port, String name, String region){
+        this.host = host;
+        this.port = port;
+        this.name = name;
+        this.region = region;
+
+    }
 
 
 }
