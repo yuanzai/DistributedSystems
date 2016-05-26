@@ -31,7 +31,8 @@ public class ExchangeTest extends TestCase{
         exchange = new ExchangeNode();
         exchange.datetime = 1451656800000L;
         exchange.name = "France";
-        exchange.inventory = new Inventory();
+        exchange.inventory = new Inventory(exchange.name);
+        exchange.holdings = new Holdings(exchange.name);
         exchange.prices = engine.dataCube.getPriceData(exchange.datetime,exchange.name);
         exchange.inventory.updateIssue(engine.dataCube.getIssueQuantity(exchange.datetime, exchange.name));
 

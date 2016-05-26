@@ -1,3 +1,4 @@
+import com.opencsv.CSVParser;
 import junit.framework.TestCase;
 import org.junit.Test;
 
@@ -39,7 +40,43 @@ public class StaticDataTest extends TestCase{
         assertEquals(prices.get("AIRBUS GROUP"), 30.44);
 
     }
+    @Test
+    public void testCompanyStaticDataSQL(){
+        dataCube = new DataCube();
+        dataCube.generateCompanyStaticData("testStockQty");
+        long datetime = 1451656800000L;
+        String country = "France";
+        String key = dataCube.issueMapKey(datetime, country);
+        assertEquals(key, "1451656800000|France");
+        Object o = dataCube.getIssueQuantity(datetime, country);
+        assertTrue(o instanceof HashMap);
+        HashMap<String, Integer> map =(HashMap<String, Integer>) o;
+        assertTrue(map.containsKey("ACCOR"));
+        assertEquals((int) map.get("ACCOR"), 100);
+
+        datetime  = 1451664000000L;
+        key = dataCube.issueMapKey(datetime, country);
+        assertNull(dataCube.getIssueQuantity(datetime, country).get("ACCOR"));
+
+        dataCube.generateMarketStaticData("testStockPrice");
+        HashMap<String, Double> prices = dataCube.getPriceData(datetime,country);
+        assertEquals(prices.get("ACCOR"), 1.22);
+        prices = dataCube.getPriceData(datetime,"HK");
+
+        assertEquals(prices.get("AIRBUS GROUP"), 30.44);
+
+        SqliteDB db = new SqliteDB();
+        db.open();
+        HashMap<String, Integer> mapsql = db.getIssueTable("France",1451656800000L);
+        System.out.println(mapsql.size());
+        db.close();
 
 
+    }
 
+    @Test
+    public void testCSV(){
+        dataCube = new DataCube();
+        dataCube.generateCompanyStaticData("qty_stocks.csv");
+    }
 }

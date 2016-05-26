@@ -7,8 +7,6 @@ import java.net.Socket;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * Created by junyuanlau on 9/5/16.
@@ -42,6 +40,9 @@ public class Engine {
     }
 
     public void start(){
+        TradeManager.log.info("["+engineAddress.port+"] Engine listening");
+
+
         serverSocket = null;
 
         try {
@@ -52,35 +53,29 @@ public class Engine {
 
         while (!terminate) {
             Socket clientSocket = null;
-            PrintWriter out = null;
-            BufferedReader in = null;
 
             try {
                 clientSocket = serverSocket.accept();
-                out = new PrintWriter(clientSocket.getOutputStream(), true);
-                in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
 
             } catch (IOException e) {
+                System.out.println("ENGINE ACCEPT FAIL");
                 e.printStackTrace();
             }
 
-            try {
-                String data = in.readLine();
-                Message received = Message.readMessage(data);
-                TradeManager.log.fine("[ENGINE] RECV " +  received.msgtype );
-                Message response = processMessage(received);
-                TradeManager.log.fine("[ENGINE] SEND " +  response.msgtype );
-                out.println(response.getMessage());
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+            SocketThread socketThread = new SocketThread("Engine",clientSocket,this);
+            socketThread.start();
+
         }
+
+
         try {
             serverSocket.close();
         } catch (IOException e) {
             e.printStackTrace();
         }
-        System.out.println("TERMINATED ENGINE");    }
+        System.out.println("TERMINATED ENGINE");
+    }
+
     public void init() {
         dataCube = new DataCube();
     }
@@ -93,14 +88,18 @@ public class Engine {
             else
                 message.payload = dataCube.cashBalance.get(message.payload).toString();
 
-        } else if (message.msgtype == Message.MSGTYPE.SUPER) {
-            superNodeAddress.put(message.sender.region, message.sender);
-            Gson gson = new GsonBuilder().create();
+        } else if (message.msgtype == Message.MSGTYPE.NODE_SUPER) {
+            if (message.payload.equals("SECONDARY")) {
+                superNodeAddress.put(message.sender.region + "BACKUP", message.sender);
+            } else {
+                superNodeAddress.put(message.sender.region, message.sender);
+            }
 
+            Gson gson = new GsonBuilder().create();
             message.payload = gson.toJson(superNodeAddress);
             for (Map.Entry<String, Address> entry: superNodeAddress.entrySet()){
                 if (!entry.getKey().equals(message.sender.region)) {
-                    Message message1 = new Message(Message.MSGTYPE.SUPER,null,entry.getValue(),message.payload);
+                    Message message1 = new Message(Message.MSGTYPE.NODE_SUPER,null,entry.getValue(),message.payload);
                     Message.sendMessageToLocal(message1);
                 }
             }
@@ -111,6 +110,7 @@ public class Engine {
             dataCube.updateBalance(DataCube.getUpdateCashBalanceAmount(message.payload),
                     DataCube.getUpdateCashBalanceCpty(message.payload));
         } else if (message.msgtype == Message.MSGTYPE.TICK) {
+
             Gson gson = new Gson();
             if (message.payload.equals("DATETIME")){
                 message.payload = String.valueOf(datetime);
@@ -123,9 +123,16 @@ public class Engine {
             }else if (message.payload.equals("REGION")){
                 message.payload = gson.toJson(dataCube.countryToContinent);
             }
+
         }
 
         return message;
+    }
+
+    public boolean hasNextTick(){
+        if (datetimeIterator == null)
+            datetimeIterator = dataCube.timeMap.keySet().iterator();
+        return datetimeIterator.hasNext();
     }
 
     public boolean tick() {
@@ -136,10 +143,33 @@ public class Engine {
         } else {
             return false;
         }
+        /*
+        for (Map.Entry<String, String> entry: dataCube.countryToContinent.entrySet()){
+
+            Message message = new Message(Message.MSGTYPE.TICKTIME,null,new Address(entry.getKey(),entry.getValue()),"");
+            Gson gson = new Gson();
+            message.payload = String.valueOf(datetime);
+            Message.sendMessage(message, superNodeAddress.get(entry.getValue()));
+
+            message.msgtype = Message.MSGTYPE.TICKPRICES;
+            message.payload = gson.toJson(getPriceData(datetime,entry.getKey()));
+            Message.sendMessage(message, superNodeAddress.get(entry.getValue()));
+
+            message.msgtype = Message.MSGTYPE.TICKISSUE;
+            message.payload = gson.toJson(getIssueQuantity(datetime,entry.getKey()));
+            Message.sendMessage(message, superNodeAddress.get(entry.getValue()));
+            try {
+                Thread.sleep(5);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }*/
+
         for (Map.Entry<String, Address> entry: superNodeAddress.entrySet()){
-            Message message = new Message(Message.MSGTYPE.TICK,null,entry.getValue(),"");
+            Message message = new Message(Message.MSGTYPE.TICK,null,entry.getValue(),String.valueOf(datetime));
             Message.sendMessageToLocal(message);
         }
+
         return true;
     }
 
@@ -186,5 +216,44 @@ class EngineThread implements Runnable {
             t.start ();
         }
     }
+}
 
+class SocketThread implements Runnable {
+    private Thread t;
+    private String threadName;
+    private Engine eng;
+    private Socket socket;
+
+    SocketThread( String name, Socket socket, Engine eng){
+        this.threadName = name;
+        this.eng = eng;
+        this.socket = socket;
+        TradeManager.log.fine("[ENGINE] Creating " +  threadName );
+    }
+
+    public void run() {
+
+        try {
+            PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            String data = in.readLine();
+            Message received = Message.readMessage(data);
+            TradeManager.log.fine("[ENGINE] RECV " +  received.msgtype );
+            Message response = eng.processMessage(received);
+            TradeManager.log.fine("[ENGINE] SEND " +  response.msgtype );
+            if (response != null)
+                out.println(response.getMessage());
+        } catch (IOException e) {
+            System.out.println("ENGINE REPLY FAIL");
+            e.printStackTrace();
+        }
+    }
+
+    public void start() {
+        if (t == null)
+        {
+            t = new Thread (this, threadName);
+            t.start ();
+        }
+    }
 }

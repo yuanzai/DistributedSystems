@@ -68,7 +68,7 @@ public class NetworkTest extends TestCase {
 
         node.datetime = 1451656800000L;
         node.name = "France";
-        node.inventory = new Inventory();
+        node.inventory = new Inventory(node.name);
         node.prices = engine.dataCube.getPriceData(node.datetime,node.name);
         node.inventory.updateIssue(engine.dataCube.getIssueQuantity(node.datetime, node.name));
 
@@ -131,7 +131,7 @@ public class NetworkTest extends TestCase {
         assertTrue(superNode.localNodeAddress.size() == 1);
 
         Address localAdd2 = new Address("localhost", 4446,"Germany", "Europe");
-        Message message = new Message(Message.MSGTYPE.LOCAL,localAdd2,superAdd,"");
+        Message message = new Message(Message.MSGTYPE.NODE_NEW_LOCAL,localAdd2,superAdd,"");
         Message.sendMessageToLocal(message);
         assertTrue(superNode.localNodeAddress.size() == 2);
         Message.sendTerminate(4444);
@@ -211,7 +211,7 @@ public class NetworkTest extends TestCase {
             e.printStackTrace();
         }
         node1.datetime = 1451656800000L;
-        node1.inventory = new Inventory();
+        node1.inventory = new Inventory(node1.name);
         node1.prices = engine.dataCube.getPriceData(node1.datetime,node1.name);
         node1.inventory.updateIssue(engine.dataCube.getIssueQuantity(node1.datetime, node1.name));
 
@@ -220,9 +220,54 @@ public class NetworkTest extends TestCase {
         // TEST TRADE 1 - no part fill, GS SENDS ORDER for ACCOR
         Order buy = new Order("1", "ACCOR", "","", Order.OrderType.BUY,100,node1.datetime, UUID.randomUUID(), false);
 
-        Message message = new Message(Message.MSGTYPE.ORDER,add2, add1,buy.getPayload());
-        Message.sendMessage(message, add2);
+        Message message = new Message(Message.MSGTYPE.ORDER,add2, add1, buy.getPayload());
+        String response = Message.sendMessage(message, add2);
         assertEquals(0, node1.inventory.checkBalance("ACCOR"));
+        System.out.println(response);
+
+    }
+
+    @Test
+    public void testSuperBackup() {
+        Address superAdd1 = new Address("localhost", 30000, "UK", "Europe");
+        Address superAdd2 = new Address("localhost", 21000, "China", "Asia");
+        Address add1 = new Address("localhost", 30001, "France", "Europe");
+        Address add2 = new Address("localhost", 21001, "HK", "Asia");
+
+        ExchangeNode superNode1 = new ExchangeNode(superAdd1);
+        superNode1.start();
+        try {
+            Thread.sleep(50);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        ExchangeNode superNode2 = new ExchangeNode(superAdd2);
+        superNode2.start();
+
+        try {
+            Thread.sleep(50);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        ExchangeNode node1 = new ExchangeNode(add1, superAdd1);
+        node1.start();
+        try {
+            Thread.sleep(50);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+/*
+        ExchangeNode node2 = new ExchangeNode(add2, superAdd2);
+        node2.start();
+        try {
+            Thread.sleep(50);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        */
+
 
     }
     public void tearDown(){

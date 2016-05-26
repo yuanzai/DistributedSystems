@@ -22,5 +22,18 @@ public class Address {
 
     }
 
+    @Override
+    public boolean equals(Object obj) {
+        if (name != null){
+            if (((Address) obj).name != null){
+                return (name.equals(((Address) obj).name));
+            }
+        }
+        return false;
+    }
 
+    @Override
+    public String toString() {
+        return name;
+    }
 }

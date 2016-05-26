@@ -12,7 +12,13 @@ import java.net.Socket;
 import java.util.HashMap;
 
 public class Message {
-    public enum MSGTYPE {ORDER, NODE, DATA, CASHBALANCE, PING, TICK, LOCAL, SUPER, TERMINATE, UPDATECASH, ORDERFILLED}
+    public enum MSGTYPE {TICK, TICKPRICES, TICKISSUE, TICKTIME,
+        ORDER, ORDERFILLED, CASHBALANCE, PING,  TERMINATE, UPDATECASH,
+        NODE_RESTART, NODE_NEW_LOCAL, NODE_SUPER, NODE_SETBACKUPSUPER,
+        PAXOS,
+        DATA_INVENTORY, DATA_HOLDINGS, GET_DATA_INVENTORY, GET_DATA_HOLDINGS, DATA_SUPERNODE,
+        ERROR
+    }
     public MSGTYPE msgtype;
     public Address sender;
     public Address receiver;
@@ -44,7 +50,14 @@ public class Message {
 
     public static Message readMessage(String data) {
         Gson gson = new Gson();
-        return gson.fromJson(data, Message.class);
+
+        try {
+            return gson.fromJson(data, Message.class);
+        } catch (com.google.gson.JsonSyntaxException e){
+            e.printStackTrace();
+
+        }
+        return null;
     }
 
     public Message(String msgString, ExchangeNode node) {
@@ -66,12 +79,36 @@ public class Message {
         Socket echoSocket = null;
         PrintWriter out = null;
         BufferedReader in = null;
-        try {
-            echoSocket = new Socket(address.host, address.port);
-            out = new PrintWriter(echoSocket.getOutputStream(), true);
-            in = new BufferedReader(new InputStreamReader(echoSocket.getInputStream()));
-        } catch (IOException e) {
-            return "FAIL";
+        int failCount = 0;
+        while(failCount<5) {
+            try {
+                echoSocket = new Socket(address.host, address.port);
+                out = new PrintWriter(echoSocket.getOutputStream(), true);
+                in = new BufferedReader(new InputStreamReader(echoSocket.getInputStream()));
+                failCount = 5;
+            } catch (IOException e) {
+                if (failCount >= 5)
+                    return "FAIL";
+
+                String name = "";
+                if (message != null) {
+                    if (message.sender != null) {
+                        if (message.sender.name != null)
+                            name = message.sender.name;
+                    }
+                }
+
+                System.out.println(name + " CONNECT FAIL " + address.name + " ON " + address.port);
+                failCount++;
+                try {
+                    Thread.sleep(5);
+                } catch (InterruptedException e1) {
+                    e1.printStackTrace();
+                }
+                message.msgtype = MSGTYPE.ERROR;
+                return message.getMessage();
+
+            }
         }
 
         out.println(message.getMessage());
@@ -92,4 +129,10 @@ public class Message {
         Message message = new Message(Message.MSGTYPE.TERMINATE,null,new Address("localhost", port),"");
         sendMessageToLocal(message);
     }
+
+    public static void ping(int port){
+        Message message = new Message(MSGTYPE.PING,null,new Address("localhost", port),"");
+        sendMessageToLocal(message);
+    }
+
 }

@@ -1,3 +1,5 @@
+import com.opencsv.CSVParser;
+
 import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
@@ -5,10 +7,7 @@ import java.io.IOException;
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.Collections;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
+import java.util.*;
 
 /**
  * Created by junyuanlau on 14/5/16.
@@ -26,14 +25,26 @@ public class DataCube {
     public DataCube(){};
 
     public void generateCompanyStaticData(String path) {
+        TradeManager.log.info("[DATA] Generating Quantity Data");
         generateStaticData(path, true);
     }
 
     public void generateMarketStaticData(String path) {
+        TradeManager.log.info("[DATA] Generating Price Data");
         generateStaticData(path, false);
     }
 
     public void generateStaticData(String path, boolean isCompanyData) {
+
+        SqliteDB sqliteDB = new SqliteDB();
+        sqliteDB.open();
+
+        if (isCompanyData)
+            sqliteDB.createIssueTable();
+        else
+            sqliteDB.createPricesTable();
+
+
         String[] continents = null;
         String[] countries = null;
         String[] tickers = null;
@@ -43,20 +54,27 @@ public class DataCube {
             BufferedReader in = new BufferedReader(new FileReader(path));
             //FileInputStream fil = new FileInputStream(new File(path));
 
-
             String line;
             while ((line = in.readLine()) != null){
                 String[] words = line.split(",");
+                CSVParser parser = new CSVParser();
+
+                if (words.length < 3)
+                    continue;
+
                 if (words[2].toLowerCase().equals("continent")) {
-                    continents = words;
+                    continents = parser.parseLine(line);
                 } else if (words[2].toLowerCase().equals("country")) {
-                    countries = words;
+                    countries = parser.parseLine(line);
                 } else if (words[2].toLowerCase().equals("stock")) {
-                    tickers = words;
+                    tickers = parser.parseLine(line);
                 } else if (words[2].toLowerCase().equals("market")) {
-                    markets = words;
+                    markets = parser.parseLine(line);
                 } else {
                     long dateTime = dateFormat(words[0], words[1]);
+                    //System.out.println(dateFormat(dateTime));
+                    //sqliteDB.startInsertStatement();
+
                     String[] issues = words;
                     for (int i = 3; i < issues.length; i++) {
                         if (!issues[i].equals("")) {
@@ -73,6 +91,9 @@ public class DataCube {
                                 if (tickerMap.get(ticker) != null)
                                     quantity += tickerMap.get(ticker);
                                 tickerMap.put(ticker, quantity);
+                                //sqliteDB.insertIssueTable(countries[i], dateTime,ticker,quantity);
+
+
                             } else {
                                 timeMap.put(dateTime, words[0] +" "+ words[1]);
 
@@ -80,10 +101,14 @@ public class DataCube {
                                     priceData.put(key, new HashMap<String, Double>());
                                 }
                                 HashMap<String, Double> tickerMap = priceData.get(key);
-                                tickerMap.put(ticker, Double.parseDouble(words[i]));
+                                double price = Double.parseDouble(words[i]);
+                                tickerMap.put(ticker,price);
+                                //sqliteDB.insertPriceTable(countries[i], dateTime,ticker,price);
                             }
                         }
                     }
+                    //sqliteDB.endInsertStatement();
+
                 }
             }
 
@@ -101,6 +126,7 @@ public class DataCube {
                 marketToCountry.put(markets[i], countries[i]);
             }
         }
+        sqliteDB.close();
     }
 
     public HashMap<String, Integer> getIssueQuantity(long datetime, String country) {
@@ -125,6 +151,16 @@ public class DataCube {
             e.printStackTrace();
         }
         return formattedDate.getTime();
+
+    }
+
+    public static String dateFormat(long datetime) {
+        DateFormat formatter = new SimpleDateFormat("MM/dd/yy hh:mm");
+        Date date = new Date();
+        date.setTime(datetime);
+        String dateText = formatter.format(date);
+
+        return dateText;
 
     }
 

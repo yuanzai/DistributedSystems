@@ -8,10 +8,11 @@ import java.util.UUID;
 public class Order {
 
     enum OrderType {BUY, SELL}
-    enum OrderStatus {CREATED, PENDING, FILLED, PARTFILL, ERROR, REJECT, NOCASH, ACK, NOINVENTORY, CONFLICT}
+    enum OrderStatus {CREATED, PENDING, FILLED, PARTFILL, ERROR, REJECT, NOCASH, ACK, NOINVENTORY, CONFLICT, EXCHANGEDOWN}
     String counterparty;
     String ticker;
     String exchange;
+    String origin;
     String region;
     OrderType orderType;
     int quantity;
@@ -39,6 +40,7 @@ public class Order {
     }
 
     public Order() {}
+
 
     public Order(String counterparty, String ticker, String exchange, String region, OrderType type, int quantity, long datetime, UUID orderID, boolean isInventorySale){
         this.counterparty = counterparty;
@@ -85,7 +87,7 @@ public class Order {
         partOrder.quantity = this.quantity;
         partOrder.datetime = this.datetime;
         partOrder.orderID = this.orderID;
-
+        partOrder.origin = this.origin;
 
 
 

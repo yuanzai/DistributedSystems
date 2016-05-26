@@ -1,3 +1,8 @@
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.reflect.TypeToken;
+
+import java.lang.reflect.Type;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -6,8 +11,10 @@ import java.util.UUID;
  * Created by junyuanlau on 5/5/16.
  */
 public class Inventory extends HashMap<String, Integer> {
-    public Inventory (){
+    public String name;
 
+    public Inventory (String name){
+        this.name = name;
     }
 
     public Inventory (byte[] data){
@@ -42,5 +49,24 @@ public class Inventory extends HashMap<String, Integer> {
             }
             this.put(entry.getKey(), this.get(entry.getKey()) + entry.getValue());
         }
+    }
+
+    public String getPayload(){
+        Gson gson = new Gson();
+        HashMap<String, String> map = new HashMap<String, String>();
+        map.put("data", gson.toJson(this));
+        map.put("name", name);
+        return gson.toJson(map);
+    }
+
+    public static Inventory fromPayload(Message message){
+        Gson gson = new GsonBuilder().create();
+        Type typeOfHashMap = new TypeToken<HashMap<String, String>>() { }.getType();
+        HashMap<String, String> map = gson.fromJson(message.payload, typeOfHashMap);
+        Inventory i = new Inventory(map.get("name"));
+        typeOfHashMap = new TypeToken<HashMap<String, Integer>>() { }.getType();
+        HashMap<String, Integer> map2 = gson.fromJson(map.get("data"), typeOfHashMap);
+        i.putAll(map2);
+        return i;
     }
 }
